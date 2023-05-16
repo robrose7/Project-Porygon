@@ -2,17 +2,17 @@ import csv
 import copy
 import random
 import pygame;
-from ash import Ash
-from brain import Brain
-from pokemon import Pokemon
-from smeargle import Smeargle
-from move import Move
-from stats import Stats
-from brainState import BrainState
+from modules.brain import Brain
+from modules.smeargle import Smeargle
+import modules.player_interface_manager as pim
+import modules.turn_manager as tm
+from interfaces.pokemon import Pokemon
+from interfaces.move import Move
+from interfaces.stats import Stats
+from interfaces.model_state import ModelState
 import pickle
 import numpy as np
 import constants
-import player_interface_manager as pim
 
 # Initialize Pygame
 pygame.init()
@@ -52,7 +52,6 @@ teams_flag = False
 stat_tracker_flag = True
 
 # model variables
-trainer = Ash()
 brain = Brain()
 num_of_episodes = 100
 model = brain.initialize_brain()
@@ -94,11 +93,7 @@ def get_current_state():
     player_hp_percent = ((player_pokemon.stats.hp / player_pokemon.stats.max_hp) * 100) - 1
     enemy_hp_percent = ((enemy_pokemon.stats.hp / enemy_pokemon.stats.max_hp) * 100) - 1
 
-
-    state = BrainState(player_hp_percent, enemy_hp_percent, player_pokemon.type, enemy_pokemon.type)
-
-    #print("$: " + str(player_pokemon.type))
-    #print("&: " + str(state.player_type))
+    state = ModelState(player_hp_percent, enemy_hp_percent, player_pokemon.type, enemy_pokemon.type)
     return state
 
 def initialize_pokemon():
@@ -169,7 +164,7 @@ def submit_turn(move, player_pokemon, enemy_pokemon):
     prev_player_hp = player_pokemon.stats.hp
     prev_enemy_hp = enemy_pokemon.stats.hp
 
-    enemy_knocked_out, player_supereffective, player_damage_dealt = process_turn(move, player_pokemon, enemy_pokemon)
+    enemy_knocked_out, player_supereffective, player_damage_dealt = tm.process_turn(move, player_pokemon, enemy_pokemon)
 
     global player_battle_message 
     player_battle_message = (str(player_pokemon.name) + " used " + str(move.name) + "!")
@@ -179,7 +174,7 @@ def submit_turn(move, player_pokemon, enemy_pokemon):
     enemy_move_index = random.randint(0, 3)
     enemy_move = enemy_pokemon.moves[enemy_move_index]
 
-    player_knocked_out, enemy_supereffective, enemy_damage_dealt = process_turn(enemy_move, enemy_pokemon, player_pokemon)
+    player_knocked_out, enemy_supereffective, enemy_damage_dealt = tm.process_turn(enemy_move, enemy_pokemon, player_pokemon)
 
     global enemy_battle_message
     enemy_battle_message = (str(enemy_pokemon.name) + " used " + str(enemy_move.name))
@@ -216,93 +211,6 @@ def submit_turn(move, player_pokemon, enemy_pokemon):
 
     return next_state, reward
 
-def process_turn(move, attacker, defender):
-    ## Damage Calculation
-    ## TODO: Make this more complex and accurate if needed
-
-    damage, is_super_effective = calculate_damage(move, attacker, defender)
-    defender.stats.hp -= damage
-
-    if (defender.stats.hp < 0):
-        defender.stats.hp = 0
-
-    ## Play Animation
-    knocked_out = False
-
-    if (defender.stats.hp <= 0):
-        knocked_out = True
-
-    return knocked_out, is_super_effective, damage
-
-def calculate_damage(move, attacker, defender):
-
-    attack = attacker.stats.atk if move.category is constants.categories['PHYSICAL'] else attacker.stats.spatk
-    defense = defender.stats.defe if move.category is constants.categories['PHYSICAL'] else defender.stats.spdef
-
-    type_multiplier, is_super_effective = check_types(move, defender)
-    
-    stab_multiplier = 1
-    if move.type == attacker.type or move.type == attacker.type2:
-        stab_multiplier *= 1.5
-
-    damage = int((((((2 * attacker.stats.level) / 5) + 2) * move.power * (attack / defense)) / 50) + 2) * type_multiplier * stab_multiplier
-    return damage, is_super_effective
-
-def check_types(move, defender):
-
-    multiplier = 1
-
-    # UI Purposes
-    is_super_effective = False
-
-    # 0 = Immune
-    # 1 = Neutral
-    # 2 = Super Effective
-    # 3 = Not Effective
-
-    chart = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 0, 1, 1, 3, 1], # Normal
-    [1, 3, 3, 2, 1, 2, 1, 1, 1, 1, 1, 2, 3, 1, 3, 1, 2, 1], # Fire
-    [1, 2, 3, 3, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 3, 1, 1, 1], # Water
-    [1, 3, 2, 3, 1, 1, 1, 3, 2, 3, 1, 3, 2, 1, 3, 1, 3, 1], # Grass
-    [1, 1, 2, 3, 1, 1, 1, 1, 0, 2, 1, 1, 1, 1, 3, 1, 1, 1], # Electric
-    [1, 3, 3, 2, 1, 3, 1, 1, 2, 2, 1, 1, 1, 1, 2, 1, 3, 1], # Ice
-    [2, 1, 1, 1, 1, 2, 1, 3, 1, 3, 3, 3, 2, 0, 1, 2, 2, 3], # Fighting
-    [1, 1, 1, 2, 1, 1, 1, 3, 3, 1, 1, 1, 3, 3, 1, 1, 0, 2], # Poison
-    [1, 2, 1, 3, 2, 1, 1, 2, 1, 0, 1, 3, 2, 1, 1, 1, 2, 1], # Ground
-    [1, 1, 1, 2, 3, 1, 2, 1, 1, 1, 1, 2, 3, 1, 1, 1, 3, 1], # Flying
-    [1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 1, 0, 3, 1], # Psychic
-    [1, 3, 1, 2, 1, 1, 3, 3, 1, 3, 2, 1, 1, 3, 1, 2, 3, 3], # Bug
-    [1, 2, 1, 1, 1, 2, 3, 1, 3, 2, 1, 2, 1, 1, 1, 1, 3, 1], # Rock
-    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 3, 1, 1], # Ghost
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 3, 0], # Dragon
-    [1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 2, 1, 1, 2, 1, 3, 1, 3], # Dark
-    [1, 3, 3, 1, 3, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 3, 2], # Steel
-    [1, 3, 1, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 2, 2, 3, 1]] # Fairy
-#    N  F  W  G  E  I  F  P  G  F  Ps B  R  Go Dr D  S  F
-
-    chart_value = chart[move.type][defender.type] 
-
-    # silly little thing
-    if chart_value == 3:
-        chart_value = 0.5
-
-    multiplier *= chart_value
-
-    if defender.type2 != None:
-        # two types
-        second_chart_value = chart[move.type][defender.type2]
-        if second_chart_value == 3:
-            second_chart_value = 0.5
-        
-        multiplier *= second_chart_value
-
-    if multiplier >= 2:
-        is_super_effective = True
-
-    return multiplier, is_super_effective     
-
-
 def reset():
 
     global player_pokemon, enemy_pokemon, player_has_won, player_has_lost, enemy_battle_message, player_battle_message, initial_draw, total_episode_reward, current_move_reward
@@ -313,10 +221,10 @@ def reset():
     player_battle_message = ""
     initial_draw = False
     total_episode_reward = 0
-    current_move_reward = 0
-    
-# Grabs all data and sends it to smeargle
+    current_move_reward = 0    
+
 def draw_battle():
+    # Grabs all data and sends it to smeargle
     smeargle.draw_battle(win,
         loss,
         total_episode_reward,
@@ -351,7 +259,7 @@ while running:
 
             pygame.time.wait(TURN_BUFFER)
             state = get_current_state()
-            move_choice = trainer.choose_move(epsilon=epsilon, q_table=q_table, state=state)
+            move_choice = brain.choose_move(epsilon=epsilon, q_table=q_table, state=state)
             move_frequency[move_choice] += 1
             active_move = player_pokemon.moves[move_choice]
             # TODO: Write to file
@@ -369,7 +277,6 @@ while running:
             #print("7: ", type(next_state.player_type))
             #print("8: ", type(next_state.enemy_type))
             #print("8: " + str(next_state.enemy_type))
-
 
             q_table[state.player_hp, state.enemy_hp, state.player_type, state.enemy_type, move_choice] = q_table[state.player_hp, state.enemy_hp, state.player_type, state.enemy_type, move_choice] + \
             learning_rate * (reward + discount_rate * np.max(q_table[next_state.player_hp, next_state.enemy_hp, next_state.player_type, next_state.enemy_type, :]) 

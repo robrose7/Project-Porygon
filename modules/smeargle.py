@@ -1,8 +1,6 @@
 
 import constants
 import pygame
-import pokemon
-
 
 #TODO, pass as imports into the functions, not into as properties of itself. 
 pygame.init()

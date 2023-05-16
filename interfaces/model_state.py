@@ -1,4 +1,4 @@
-class BrainState:
+class ModelState:
 
     def __init__(self, player_hp_percent, enemy_hp_percent, player_type, enemy_type):
         self.player_hp = int(player_hp_percent)
