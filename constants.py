@@ -1,5 +1,5 @@
 import pygame
-
+import flags
 pygame.init()
 
 # Ui Static Values
@@ -21,6 +21,11 @@ DARK_GREEN = (17, 150, 52)
 
 FONT_SMALL = pygame.font.Font(None, 30)
 FONT_LARGE = pygame.font.Font(None, 60)
+
+SINGLE_POKEMON_INDEX = 2
+
+TURN_BUFFER = 1 if flags.ai_flag else 1000
+NEW_GAME_BUFFER = 1 if flags.ai_flag else 1000
 
 types = {
     'NORMAL': 0,

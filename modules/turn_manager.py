@@ -1,4 +1,54 @@
 import constants
+import random
+
+from interfaces.model_state import ModelState
+
+
+def submit_turn(move, player_pokemon, enemy_pokemon):
+
+    prev_player_hp = player_pokemon.stats.hp
+    prev_enemy_hp = enemy_pokemon.stats.hp
+
+    enemy_knocked_out, player_supereffective, player_damage_dealt = process_turn(move, player_pokemon, enemy_pokemon)
+
+    player_battle_message = (str(player_pokemon.name) + " used " + str(move.name) + "!")
+
+    # TODO: Could add decision making to this
+    enemy_move_index = random.randint(0, 3)
+    enemy_move = enemy_pokemon.moves[enemy_move_index]
+
+    player_knocked_out, enemy_supereffective, enemy_damage_dealt = process_turn(enemy_move, enemy_pokemon, player_pokemon)
+
+    enemy_battle_message = (str(enemy_pokemon.name) + " used " + str(enemy_move.name))
+
+    player_has_won = False
+    player_has_lost = False
+
+    if enemy_knocked_out:
+        player_has_won = True
+
+    if player_knocked_out and not enemy_knocked_out:
+        player_has_lost = True
+        player_has_won = False
+
+    next_state = get_current_state(player_pokemon, enemy_pokemon)
+
+    new_player_hp = next_state.player_hp
+    new_enemy_hp = next_state.enemy_hp
+
+    # reward equals damage dealt
+
+    multiplier = 1
+    if player_supereffective:
+        multiplier *= 1.5
+
+    function_1 = (prev_enemy_hp - new_enemy_hp)
+    function_2 = (prev_enemy_hp - new_enemy_hp) * multiplier
+    function_3 = player_damage_dealt * multiplier
+
+    reward = function_2
+
+    return next_state, reward, player_has_won, player_has_lost, player_battle_message, enemy_battle_message,  player_supereffective, enemy_supereffective, player_damage_dealt, enemy_damage_dealt
 
 def process_turn(move, attacker, defender):
     ## Damage Calculation
@@ -84,4 +134,13 @@ def check_types(move, defender):
     if multiplier >= 2:
         is_super_effective = True
 
-    return multiplier, is_super_effective     
+    return multiplier, is_super_effective    
+
+def get_current_state(player_pokemon, enemy_pokemon):
+
+        # 0 - 99
+        player_hp_percent = ((player_pokemon.stats.hp / player_pokemon.stats.max_hp) * 100) - 1
+        enemy_hp_percent = ((enemy_pokemon.stats.hp / enemy_pokemon.stats.max_hp) * 100) - 1
+
+        state = ModelState(player_hp_percent, enemy_hp_percent, player_pokemon.type, enemy_pokemon.type)
+        return state 

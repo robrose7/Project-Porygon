@@ -1,255 +1,68 @@
-import csv
-import copy
 import random
-import pygame;
-from modules.brain import Brain
-from modules.smeargle import Smeargle
+import pygame
+from modules.brain import Brain;
+import modules.smeargle as sm
 import modules.player_interface_manager as pim
 import modules.turn_manager as tm
-from interfaces.pokemon import Pokemon
-from interfaces.move import Move
-from interfaces.stats import Stats
-from interfaces.model_state import ModelState
 import pickle
 import numpy as np
-import constants
+import initializer
+
+# # # - Globals
+import globals
+
+# # # - Flags
+from flags import ai_flag
 
 # Initialize Pygame
 pygame.init()
 
-# Set up the window dimensions
-window = pygame.display.set_mode((constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT))
-player_turn = True
-player_battle_message = ""
-enemy_battle_message = ""
-player_supereffective = False
-enemy_supereffective = False
-player_has_won = False
-player_has_lost = False
-selected_move_index = 0
-master_move_list = []
-master_pokemon_list = []
-win_record = np.zeros(12)
-loss_record = np.zeros(12)
-move_frequency = np.zeros(4)
-
-win = 0
-loss = 0
-
-# Handles all drawing
-smeargle = Smeargle(window)
-
-# Flags
-ai_flag = True
-pretrained_flag = False
-multi_pokemon_flag = False
-all_pokemon_flag = False
-single_pokemon_index = 2
-
-# (WIP) Flags
-observable_flag = False
-teams_flag = False
-stat_tracker_flag = True
-
-# model variables
 brain = Brain()
-num_of_episodes = 100
 model = brain.initialize_brain()
-total_episode_reward = 0
-current_move_reward = 0
-
-if pretrained_flag:
-    with open('q_table.pkl', 'rb') as f:
-        q_table = pickle.load(f)
-else:
-    q_table = np.zeros((100, 100, 18, 18, 4))
-
-# Epsilon value = rate at which we randomly explore compared to educated decision
-if pretrained_flag:
-    epsilon = 1.0
-else:
-    epsilon = 1.0
-
-# knobs and dials
-epsilon_decay_rate = 0.99
-learning_rate = 0.01
-discount_rate = 0.99
-
-# in milliseconds
-TURN_BUFFER = 1 if ai_flag else 100
-if observable_flag:
-    TURN_BUFFER = 2000
-
-NEW_GAME_BUFFER = 1 if ai_flag else 100
 
 # Set up the clock
 clock = pygame.time.Clock()
 
-def get_current_state():
-
-    # Plug any state model needed here
-
-    # 0 - 99
-    player_hp_percent = ((player_pokemon.stats.hp / player_pokemon.stats.max_hp) * 100) - 1
-    enemy_hp_percent = ((enemy_pokemon.stats.hp / enemy_pokemon.stats.max_hp) * 100) - 1
-
-    state = ModelState(player_hp_percent, enemy_hp_percent, player_pokemon.type, enemy_pokemon.type)
-    return state
-
-def initialize_pokemon():
-
-    global master_move_list, master_pokemon_list
-    master_pokemon_list = []
-    master_move_list = []
-
-    # Cleanly fix variable type issues
-    with open('data/moves.csv', 'r') as move_file:
-        move_reader = csv.reader(move_file)
-        for move in move_reader:
-            new_move = Move(move[0],move[1],constants.types[move[2]],int(move[3]),int(move[4]),move[5])
-            master_move_list.append(new_move)
-
-    with open('data/pokemon_data.csv', 'r') as pokemon_file:
-        pokemon_reader = csv.reader(pokemon_file)
-        for pokemon in pokemon_reader:
-            moves = []
-            move_ids = [pokemon[10],pokemon[11],pokemon[12],pokemon[13]]
-            for id in move_ids:
-                move_index = 0
-                for i, move in enumerate(master_move_list):
-                    if move.id == id:
-                        move_index = i
-                        break
-                moves.append(master_move_list[move_index])
-            
-    
-            second_type = None if pokemon[3] == 'NULL' else constants.types[pokemon[3]]
-            stats = Stats(50,int(pokemon[4]),int(pokemon[5]),int(pokemon[6]),int(pokemon[7]),int(pokemon[8]))
-            new_pokemon = Pokemon(int(pokemon[0]),pokemon[1],constants.types[pokemon[2]],second_type,moves,stats)
-            master_pokemon_list.append(new_pokemon)
-
-    # [master_pokemon_list[0], master_pokemon_list[1], master_pokemon_list[2], master_pokemon_list[3], master_pokemon_list[4], master_pokemon_list[5], master_pokemon_list[6], master_pokemon_list[7], master_pokemon_list[8]]
-    enemy_pokemon_pool = [master_pokemon_list[9], master_pokemon_list[10], master_pokemon_list[11]]
-    # enemy_pokemon_pool = [master_pokemon_list[0], master_pokemon_list[1], master_pokemon_list[2], master_pokemon_list[3], master_pokemon_list[4], master_pokemon_list[5], master_pokemon_list[6], master_pokemon_list[7], master_pokemon_list[8]]
-    if multi_pokemon_flag:
-        if all_pokemon_flag:
-            enemy_pokemon_choice = random.randint(0, len(master_pokemon_list) - 1)
-            enemy_pokemon = copy.deepcopy(master_pokemon_list[enemy_pokemon_choice])
-        else:
-            enemy_pokemon_choice = random.randint(0, len(enemy_pokemon_pool) - 1)
-            enemy_pokemon = copy.deepcopy(enemy_pokemon_pool[enemy_pokemon_choice])
-    else:
-        enemy_pokemon = copy.deepcopy(master_pokemon_list[single_pokemon_index])
-
-    player_pokemon = copy.deepcopy(master_pokemon_list[0])
-
-    return player_pokemon, enemy_pokemon
-
-def submit_turn(move, player_pokemon, enemy_pokemon):
-    
-    ## Have selected move
-    ## Execute move on enemy pokemon
-    ## Damage Calculation
-    ## Play Animation
-
-    ## Determine enemy selected move
-    ## Execute move on player pokemon
-    ## Damage Calculation
-    ## Play Animation
-
-    ## TODO: Order of this could be determined by Speed
-
-    global player_supereffective, enemy_supereffective
-
-    prev_player_hp = player_pokemon.stats.hp
-    prev_enemy_hp = enemy_pokemon.stats.hp
-
-    enemy_knocked_out, player_supereffective, player_damage_dealt = tm.process_turn(move, player_pokemon, enemy_pokemon)
-
-    global player_battle_message 
-    player_battle_message = (str(player_pokemon.name) + " used " + str(move.name) + "!")
-
-    # TODO: Could add decision making to this
-    global trainer
-    enemy_move_index = random.randint(0, 3)
-    enemy_move = enemy_pokemon.moves[enemy_move_index]
-
-    player_knocked_out, enemy_supereffective, enemy_damage_dealt = tm.process_turn(enemy_move, enemy_pokemon, player_pokemon)
-
-    global enemy_battle_message
-    enemy_battle_message = (str(enemy_pokemon.name) + " used " + str(enemy_move.name))
-
-    if enemy_knocked_out:
-        global player_has_won
-        player_has_won = True
-
-    if player_knocked_out and not enemy_knocked_out:
-        global player_has_lost
-        player_has_lost = True
-        player_has_won = False
-
-    next_state = get_current_state()
-
-    new_player_hp = next_state.player_hp
-    new_enemy_hp = next_state.enemy_hp
-
-    # reward equals damage dealt
-
-    multiplier = 1
-    if player_supereffective:
-        multiplier *= 1.5
-
-    function_1 = (prev_enemy_hp - new_enemy_hp)
-    function_2 = (prev_enemy_hp - new_enemy_hp) * multiplier
-    function_3 = player_damage_dealt * multiplier
-
-    reward = function_2
-
-    #logging purposes
-    global current_move_reward
-    current_move_reward = reward
-
-    return next_state, reward
-
 def reset():
 
-    global player_pokemon, enemy_pokemon, player_has_won, player_has_lost, enemy_battle_message, player_battle_message, initial_draw, total_episode_reward, current_move_reward
-    player_pokemon, enemy_pokemon = initialize_pokemon()
-    player_has_lost = False
-    player_has_won = False
-    enemy_battle_message = ""
-    player_battle_message = ""
+    global player_pokemon, enemy_pokemon, initial_draw
+    player_pokemon, enemy_pokemon, globals.master_pokemon_list, globals.master_move_list = initializer.initialize_pokemon()
+    globals.player_has_lost = False
+    globals.player_has_won = False
+    globals.enemy_battle_message = ""
+    globals.player_battle_message = ""
     initial_draw = False
-    total_episode_reward = 0
-    current_move_reward = 0    
+    globals.total_episode_reward = 0
+    globals.current_move_reward = 0    
 
 def draw_battle():
     # Grabs all data and sends it to smeargle
-    smeargle.draw_battle(win,
-        loss,
-        total_episode_reward,
-        current_move_reward,
-        ai_flag,
-        enemy_pokemon,
-        player_pokemon,
-        player_battle_message,
-        enemy_battle_message,
-        player_supereffective,
-        enemy_supereffective,
-        selected_move_index,
-        win_record,
-        loss_record,
-        master_pokemon_list,
-        move_frequency
+    sm.draw_battle(window=globals.window,
+        win=globals.win,
+        loss=globals.loss,
+        total_episode_reward=globals.total_episode_reward,
+        current_move_reward=globals.current_move_reward,
+        ai_flag=ai_flag,
+        enemy_pokemon=enemy_pokemon,
+        player_pokemon=player_pokemon,
+        player_battle_message=globals.player_battle_message,
+        enemy_battle_message=globals.enemy_battle_message,
+        player_supereffective=globals.player_supereffective,
+        enemy_supereffective=globals.enemy_supereffective,
+        selected_move_index=globals.selected_move_index,
+        win_record=globals.win_record,
+        loss_record=globals.loss_record,
+        master_pokemon_list=globals.master_pokemon_list,
+        move_frequency=globals.move_frequency
     )
 
-player_pokemon, enemy_pokemon = initialize_pokemon()
-
+player_pokemon, enemy_pokemon, globals.master_pokemon_list, globals.master_move_list = initializer.initialize_pokemon()
 initial_draw = True
 running = True
+
 while running:
 
-    for e in range(num_of_episodes):
+    for e in range(globals.num_of_episodes):
 
         if initial_draw:
             draw_battle()
@@ -257,34 +70,10 @@ while running:
 
         if ai_flag:
 
-            pygame.time.wait(TURN_BUFFER)
-            state = get_current_state()
-            move_choice = brain.choose_move(epsilon=epsilon, q_table=q_table, state=state)
-            move_frequency[move_choice] += 1
-            active_move = player_pokemon.moves[move_choice]
-            # TODO: Write to file
-
-            next_state, reward = submit_turn(active_move, player_pokemon, enemy_pokemon)
-
-            #print("0: " + str(player_pokemon.type))
-            #print("1: ", type(state.player_hp))
-            #print("2: ", type(state.enemy_hp))
-            #print("3: ", type(state.player_type))
-            #print("4: ", type(state.enemy_type))
-
-            #print("5: ", type(next_state.player_hp))
-            #print("6: ", type(next_state.enemy_hp))
-            #print("7: ", type(next_state.player_type))
-            #print("8: ", type(next_state.enemy_type))
-            #print("8: " + str(next_state.enemy_type))
-
-            q_table[state.player_hp, state.enemy_hp, state.player_type, state.enemy_type, move_choice] = q_table[state.player_hp, state.enemy_hp, state.player_type, state.enemy_type, move_choice] + \
-            learning_rate * (reward + discount_rate * np.max(q_table[next_state.player_hp, next_state.enemy_hp, next_state.player_type, next_state.enemy_type, :]) 
-            - q_table[state.player_hp, state.enemy_hp, state.player_type, state.enemy_type, move_choice])
-            total_episode_reward += reward
-            state = next_state
-
+            reward, globals.player_has_won, globals.player_has_lost, globals.player_battle_message, globals.enemy_battle_message, globals.player_supereffective, globals.enemy_supereffective, player_damage_dealt, enemy_damage_dealt = brain.run_episode(player_pokemon, enemy_pokemon, globals.epsilon)
+            globals.total_episode_reward += reward
             draw_battle()
+
 
         # Handle events
         for event in pygame.event.get():
@@ -293,10 +82,10 @@ while running:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_s:
                     with open('q_table.pkl', 'wb') as f:
-                        pickle.dump(q_table, f)
+                        pickle.dump(brain.q_table, f)
 
             # Options for player turn
-            if player_turn == True and not ai_flag:
+            if globals.player_turn == True and not ai_flag:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_LEFT:
                         pim.navigate_menu("left")
@@ -307,30 +96,31 @@ while running:
                     elif event.key == pygame.K_DOWN:
                         pim.navigate_menu("down")
                     elif event.key == pygame.K_RETURN:
-                        submit_turn(player_pokemon.moves[selected_move_index], player_pokemon, enemy_pokemon)
+                        tm.submit_turn(player_pokemon.moves[globals.selected_move_index], player_pokemon, enemy_pokemon)
 
                     draw_battle()
 
-        if player_has_won:
+        if globals.player_has_won:
             if not ai_flag:
-                smeargle.draw_win()
+                sm.draw_win(globals.window)
             
-            win_record[enemy_pokemon.id] += 1
+            globals.win_record[enemy_pokemon.id] += 1
             pygame.display.update()
-            pygame.time.wait(NEW_GAME_BUFFER)
-            win += 1
-            epsilon *= epsilon_decay_rate
+            pygame.time.wait(1)
+            globals.win += 1
+            globals.epsilon *= globals.epsilon_decay_rate
+            print('Hitting reset', globals.epsilon)
             reset()
 
-        if player_has_lost:
+        if globals.player_has_lost:
             if not ai_flag:
-                smeargle.draw_lose()
+                sm.draw_lose(globals.window)
 
-            loss_record[enemy_pokemon.id] += 1
+            globals.loss_record[enemy_pokemon.id] += 1
             pygame.display.update()
-            pygame.time.wait(NEW_GAME_BUFFER)
-            loss += 1
-            epsilon *= epsilon_decay_rate
+            pygame.time.wait(1)
+            globals.loss += 1
+            globals.epsilon *= globals.epsilon_decay_rate
             reset()
 
         # Update the display
