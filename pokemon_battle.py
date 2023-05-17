@@ -18,7 +18,6 @@ from flags import ai_flag
 pygame.init()
 
 brain = Brain()
-model = brain.initialize_brain()
 
 # Set up the clock
 clock = pygame.time.Clock()
@@ -109,7 +108,6 @@ while running:
             pygame.time.wait(1)
             globals.win += 1
             globals.epsilon *= globals.epsilon_decay_rate
-            print('Hitting reset', globals.epsilon)
             reset()
 
         if globals.player_has_lost:

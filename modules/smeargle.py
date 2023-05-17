@@ -29,10 +29,12 @@ def draw_battle(window,
     draw_stat_tracker(window=window, win_record=win_record, loss_record=loss_record, master_pokemon_list=master_pokemon_list, player_pokemon=player_pokemon, move_frequency=move_frequency)
     draw_text(window, "Win: " + str(win), 600, 100, constants.FONT_SMALL, constants.BLACK)
     draw_text(window, "Loss: " + str(loss), 600, 130 , constants.FONT_SMALL, constants.BLACK)
+    draw_text(window, "Total Games: " + str(win + loss), 600, 160 , constants.FONT_SMALL, constants.BLACK)
+    draw_text(window, "Win Rate: " + str(get_win_rate(win, loss)) + "%", 600, 190 , constants.FONT_SMALL, constants.BLACK)
+
 
     if ai_flag:
-        draw_text(window, "Current Move Reward: " + str(current_move_reward), 600, 160, constants.FONT_SMALL, constants.BLACK)
-        draw_text(window, "Total Reward: " + str(total_episode_reward), 600, 190, constants.FONT_SMALL, constants.BLACK)
+        draw_text(window, "Total Reward: " + str(total_episode_reward), 600, 240, constants.FONT_SMALL, constants.BLACK)
 
     # Pokemon Name and HP Bars
     draw_text(window, str(enemy_pokemon.name), 150, 100, constants.FONT_LARGE, constants.BLACK)
@@ -45,7 +47,8 @@ def draw_battle(window,
     draw_text(window, enemy_battle_message, 400, 350, constants.FONT_SMALL, constants.RED if enemy_supereffective else constants.BLACK)
 
     # Move Option Display
-    draw_player_menu(window, player_pokemon, selected_move_index)    
+    if not ai_flag:
+        draw_player_menu(window, player_pokemon, selected_move_index)    
 
 def draw_hp_bar(surface, x, y, hp, max_hp):
 
@@ -120,32 +123,37 @@ def draw_stat_tracker(window, win_record, loss_record, master_pokemon_list, play
 
     FONT = pygame.font.Font(None, 30)
 
-    x = 5
-    y = 275
+    x = 850
+    y = 82
     for i, record in enumerate(win_record):
-        text = f"{master_pokemon_list[i].name}: {int(win_record[i])} - {int(loss_record[i])} - {get_win_rate(win_record, loss_record, i)}%"
-        text_surface = text_surface = FONT.render(text, True, (0, 0, 0))
+        text = f"{master_pokemon_list[i].name}: {int(win_record[i])} - {int(loss_record[i])} - {get_win_rate(win_record[i], loss_record[i])}%"
+        text_surface = text_surface = FONT.render(text, True, get_type_color(master_pokemon_list[i].type))
         text_rect = text_surface.get_rect()
         text_rect.topleft = (x, y)
         window.blit(text_surface, text_rect)
 
         y += 25
+
+    y += 25
 
     for i, move, in enumerate(move_frequency):
         text = f"{player_pokemon.moves[i].name}: {int(move_frequency[i])}"
-        text_surface = text_surface = FONT.render(text, True, (0, 0, 0))
+        text_surface = text_surface = FONT.render(text, True, get_type_color(player_pokemon.moves[i].type))
         text_rect = text_surface.get_rect()
         text_rect.topleft = (x, y)
         window.blit(text_surface, text_rect)
 
-        y += 25
+        y += 35
 
-def get_win_rate(win_record, loss_record, i):
+def get_win_rate(win_record, loss_record):
 
-    if(win_record[i] == 0):
+    if(win_record == 0):
         return 0
-    if(loss_record[i] == 0):
+    if(loss_record == 0):
         return 100
 
-    return int((win_record[i] / (loss_record[i] + win_record[i])) * 100)
+    return int((win_record / (loss_record + win_record)) * 100)
+
+def get_type_color(type):
+    return constants.TYPE_COLORS[type]
 

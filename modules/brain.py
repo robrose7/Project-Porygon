@@ -1,6 +1,3 @@
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.optimizers import Adam
 import numpy as np
 import pygame
 import flags
@@ -17,28 +14,12 @@ pygame.init()
 
 class Brain: 
     def __init__(self) -> None:
-        self.brain = self.initialize_brain()
         self.state = None
         self.next_state = None
         self.q_table = self.load_table()
-
-    def initialize_brain(self):
-        # Define the number of inputs and outputs
-        num_inputs = 4
-        num_outputs = 2
-
-        # Define the neural network model
-        model = Sequential()
-        model.add(Dense(32, input_dim=num_inputs, activation='relu'))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dense(num_outputs, activation='softmax'))
-
-        # Compile the model with the Adam optimizer and mean squared error loss function
-        model.compile(optimizer=Adam(lr=0.001), loss='mse')
-        return model
     
     def choose_move(self, epsilon):
-        # Start the brain here
+        # Q - Table Policy
         if np.random.rand() < epsilon:
             action = np.random.randint(4)
         else:
@@ -56,10 +37,7 @@ class Brain:
 
         self.next_state, reward, player_has_won, player_has_lost, player_battle_message, enemy_battle_message, player_supereffective, enemy_supereffective, player_damage_dealt, enemy_damage_dealt = tm.submit_turn(active_move, player_pokemon, enemy_pokemon)
 
-        print("-----")
-        print("Checking State: ", vars(self.state))
-        print("Next State: ", vars(self.next_state))
-        # Update 2 Table with State and Next State
+        # Update Q Table with State and Next State
         self.q_table[self.state.player_hp, self.state.enemy_hp, self.state.player_type, self.state.enemy_type, move_choice] = self.q_table[self.state.player_hp, self.state.enemy_hp, self.state.player_type, self.state.enemy_type, move_choice] + \
         learning_rate * (reward + discount_rate * np.max(self.q_table[self.next_state.player_hp, self.next_state.enemy_hp, self.next_state.player_type, self.next_state.enemy_type, :]) 
         - self.q_table[self.state.player_hp, self.state.enemy_hp, self.state.player_type, self.state.enemy_type, move_choice])
